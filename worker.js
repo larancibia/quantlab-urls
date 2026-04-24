@@ -1,12 +1,12 @@
-// Cloudflare Worker: quantlab-urls dashboard with Basic Auth
-// Serves a single HTML page listing all Luis's project URLs.
-// Auth: luis / Tengo1Hermana25
+// Cloudflare Worker: quantlab-urls dashboard
+// Classic login page + cookie session. Basic Auth & ?k= also supported.
 
 const AUTH_USER = 'luis';
 const AUTH_PASS = 'Tengo1Hermana25';
-const AUTH_KEY = AUTH_PASS; // query param ?k=
-const EXPECTED_AUTH = 'Basic ' + btoa(AUTH_USER + ':' + AUTH_PASS);
+const AUTH_KEY = AUTH_PASS;
 const COOKIE_NAME = 'ql_auth';
+const COOKIE_VALUE = AUTH_KEY;
+const EXPECTED_BASIC = 'Basic ' + btoa(AUTH_USER + ':' + AUTH_PASS);
 
 const HTML = `<!DOCTYPE html>
 <html lang="es">
@@ -24,14 +24,15 @@ const HTML = `<!DOCTYPE html>
   --text-dim: #8b95a5;
   --accent: #10b981;
   --warn: #f59e0b;
-  --danger: #ef4444;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; padding: 24px; }
 .container { max-width: 1100px; margin: 0 auto; }
-header { margin-bottom: 32px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+header { margin-bottom: 32px; padding-bottom: 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-end; }
 header h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
 header p { color: var(--text-dim); font-size: 13px; }
+header .logout { color: var(--text-dim); font-size: 12px; text-decoration: none; border: 1px solid var(--border); padding: 6px 12px; border-radius: 6px; }
+header .logout:hover { color: var(--text); border-color: var(--text-dim); }
 .grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
 @media (min-width: 720px) { .grid { grid-template-columns: 1fr 1fr; } }
 section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
@@ -44,17 +45,17 @@ section h2 .count { background: var(--surface-2); color: var(--text-dim); paddin
 .item .desc { font-size: 12px; color: var(--text-dim); }
 .badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-left: 6px; }
 .badge.live { background: rgba(16,185,129,0.15); color: var(--accent); }
-.badge.demo { background: rgba(245,158,11,0.15); color: var(--warn); }
-.badge.archived { background: rgba(139,149,165,0.15); color: var(--text-dim); }
 footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--text-dim); font-size: 12px; text-align: center; }
-footer code { background: var(--surface-2); padding: 1px 5px; border-radius: 3px; font-size: 11px; }
 </style>
 </head>
 <body>
 <div class="container">
 <header>
-  <h1>🛰️ quantlab · dashboard</h1>
-  <p>Índice de servicios y URLs del homelab + Vercel + paquetes</p>
+  <div>
+    <h1>🛰️ quantlab · dashboard</h1>
+    <p>Índice de servicios y URLs del homelab + Vercel + paquetes</p>
+  </div>
+  <a class="logout" href="/logout">Logout</a>
 </header>
 
 <div class="grid">
@@ -112,67 +113,131 @@ footer code { background: var(--surface-2); padding: 1px 5px; border-radius: 3px
 </div>
 
 <footer>
-Hosted on Cloudflare Workers · Query-param auth (cookie-backed) + Basic Auth fallback
+Hosted on Cloudflare Workers · session cookie 30 days
 </footer>
 </div>
 </body>
 </html>`;
 
+function loginHtml(error) {
+  const errorBlock = error ? `<p class="error">${error}</p>` : '';
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login · quantlab</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif; background: #0a0d12; color: #e4e7ec; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.card { background: #10151c; border: 1px solid #1f2733; border-radius: 12px; padding: 32px; width: 100%; max-width: 360px; }
+h1 { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
+.sub { color: #8b95a5; font-size: 13px; margin-bottom: 24px; }
+label { display: block; font-size: 12px; color: #8b95a5; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.06em; }
+input { width: 100%; padding: 10px 12px; background: #151b25; border: 1px solid #1f2733; border-radius: 6px; color: #e4e7ec; font-size: 14px; margin-bottom: 16px; font-family: inherit; }
+input:focus { outline: none; border-color: #10b981; }
+button { width: 100%; padding: 10px; background: #10b981; color: #0a0d12; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
+button:hover { background: #0ea572; }
+.error { color: #ef4444; font-size: 13px; margin-bottom: 16px; background: rgba(239,68,68,0.1); padding: 8px 12px; border-radius: 6px; }
+</style>
+</head>
+<body>
+<form class="card" method="POST" action="/login">
+  <h1>🛰️ quantlab</h1>
+  <p class="sub">Ingresá para ver el dashboard</p>
+  ${errorBlock}
+  <label for="user">Usuario</label>
+  <input id="user" name="user" type="text" autocomplete="username" required autofocus>
+  <label for="pass">Contraseña</label>
+  <input id="pass" name="pass" type="password" autocomplete="current-password" required>
+  <button type="submit">Entrar</button>
+</form>
+</body>
+</html>`;
+}
+
 addEventListener('fetch', (event) => {
   event.respondWith(handle(event.request));
 });
 
-function isAuthenticated(request) {
-  // 1. ?k=... in URL (preferred for bookmarks)
-  const url = new URL(request.url);
-  if (url.searchParams.get('k') === AUTH_KEY) return { ok: true, setCookie: true };
-
-  // 2. Cookie set by previous ?k= hit (so the query-string-less URL works too)
+function hasSession(request) {
   const cookie = request.headers.get('Cookie') || '';
   const m = cookie.match(new RegExp('(?:^|; )' + COOKIE_NAME + '=([^;]+)'));
-  if (m && m[1] === AUTH_KEY) return { ok: true };
-
-  // 3. HTTP Basic Auth (curl, Alfred workflows, etc.)
+  if (m && m[1] === COOKIE_VALUE) return true;
   const auth = request.headers.get('Authorization') || '';
-  if (auth === EXPECTED_AUTH) return { ok: true };
+  if (auth === EXPECTED_BASIC) return true;
+  return false;
+}
 
-  return { ok: false };
+function sessionCookie() {
+  return COOKIE_NAME + '=' + COOKIE_VALUE + '; Path=/; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax';
+}
+
+function clearCookie() {
+  return COOKIE_NAME + '=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax';
 }
 
 async function handle(request) {
-  const result = isAuthenticated(request);
-  if (!result.ok) {
-    return new Response(
-      'Unauthorized. Use https://urls.firemandeveloper.com/?k=YOUR_KEY or Basic Auth.\n',
-      {
-        status: 401,
-        headers: {
-          'WWW-Authenticate': 'Basic realm="quantlab dashboard", charset="UTF-8"',
-          'Content-Type': 'text/plain; charset=utf-8',
-        },
-      }
-    );
-  }
-
   const url = new URL(request.url);
-  const headers = {
-    'Content-Type': 'text/html; charset=utf-8',
-    'Cache-Control': 'private, no-cache',
-  };
+  const { pathname } = url;
 
-  // After first ?k= hit, set a cookie + redirect to clean URL so the key
-  // doesn't linger in history / Referer.
-  if (result.setCookie && url.searchParams.has('k')) {
-    const clean = url.pathname + (url.search ? url.search.replace(/[?&]k=[^&]*/, '').replace(/^&/, '?') : '');
-    const finalUrl = clean.replace(/\?$/, '') || '/';
+  // Logout
+  if (pathname === '/logout') {
     return new Response(null, {
       status: 302,
-      headers: {
-        Location: finalUrl,
-        'Set-Cookie': COOKIE_NAME + '=' + AUTH_KEY + '; Path=/; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax',
-      },
+      headers: { Location: '/login', 'Set-Cookie': clearCookie() },
     });
   }
 
-  return new Response(HTML, { headers });
+  // Login page
+  if (pathname === '/login') {
+    if (request.method === 'GET') {
+      if (hasSession(request)) {
+        return new Response(null, { status: 302, headers: { Location: '/' } });
+      }
+      return new Response(loginHtml(null), {
+        headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+      });
+    }
+    if (request.method === 'POST') {
+      const form = await request.formData();
+      const user = form.get('user');
+      const pass = form.get('pass');
+      if (user === AUTH_USER && pass === AUTH_PASS) {
+        return new Response(null, {
+          status: 302,
+          headers: { Location: '/', 'Set-Cookie': sessionCookie() },
+        });
+      }
+      return new Response(loginHtml('Usuario o contraseña incorrecta'), {
+        status: 401,
+        headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+      });
+    }
+    return new Response('Method not allowed', { status: 405 });
+  }
+
+  // Legacy ?k= shortcut: set cookie + redirect to clean URL
+  if (url.searchParams.get('k') === AUTH_KEY) {
+    return new Response(null, {
+      status: 302,
+      headers: { Location: url.pathname || '/', 'Set-Cookie': sessionCookie() },
+    });
+  }
+
+  // Everything else requires auth
+  if (!hasSession(request)) {
+    return new Response(null, {
+      status: 302,
+      headers: { Location: '/login' },
+    });
+  }
+
+  // Authenticated: serve dashboard (root only; everything else 404)
+  if (pathname === '/' || pathname === '/index.html') {
+    return new Response(HTML, {
+      headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-cache' },
+    });
+  }
+  return new Response('Not found', { status: 404 });
 }

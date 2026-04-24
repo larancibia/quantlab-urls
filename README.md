@@ -28,21 +28,27 @@ Live at **https://urls.firemandeveloper.com**.
 
 ## Auth
 
-Three auth methods, checked in this order:
+Classic login page + 30-day session cookie. Three ways to authenticate:
 
-1. **Query string** — `?k=YOUR_KEY`. First hit sets a 30-day cookie and redirects to the clean URL (so the key doesn't linger in history). This is the recommended flow for browsers: one link, bookmarkable, no prompt.
-2. **Cookie** — set automatically by the previous step. All subsequent hits to the bare URL work.
-3. **HTTP Basic Auth** — `Authorization: Basic base64(user:pass)`. Useful for `curl`, shortcuts, Alfred workflows, monitoring scripts.
+1. **Browser** — navigate to any URL, the Worker redirects to `/login`. Submit the form, the server sets an `HttpOnly Secure SameSite=Lax` cookie and redirects back to `/`. `/logout` clears it.
+2. **`?k=YOUR_KEY` shortcut** — for bookmarks / scripts: the key is validated, cookie set, user redirected to the clean URL. No form.
+3. **HTTP Basic Auth** — `Authorization: Basic base64(user:pass)` on every request. Useful for `curl`, cron, Alfred, monitoring:
+   ```bash
+   curl -u 'luis:YOUR_KEY' https://urls.firemandeveloper.com
+   ```
 
-```bash
-# One-shot URL (browser, Alfred, etc.)
-open 'https://urls.firemandeveloper.com/?k=YOUR_KEY'
+Credentials and routes live in the constants at the top of `worker.js`: `AUTH_USER`, `AUTH_PASS`, `AUTH_KEY`, `COOKIE_NAME`. Rotate by editing and re-deploying.
 
-# Command-line
-curl -u 'luis:YOUR_KEY' https://urls.firemandeveloper.com
-```
+### Routes
 
-All three compare against constants at the top of `worker.js`: `AUTH_USER`, `AUTH_PASS`, `AUTH_KEY`. Rotate by editing and re-deploying.
+| Method | Path | Behavior |
+|---|---|---|
+| `GET` | `/` | Dashboard (requires session) |
+| `GET` | `/login` | Login form |
+| `POST` | `/login` | Validates form, sets cookie, 302 to `/` on success, 401 with form on failure |
+| `GET` | `/logout` | Clears cookie, 302 to `/login` |
+| `GET` | `/?k=KEY` | Sets cookie, 302 to `/` |
+| `GET` | any other path | 404 (or 302 to `/login` if unauthenticated) |
 
 ## Local setup
 
