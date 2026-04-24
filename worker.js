@@ -2,7 +2,11 @@
 // Serves a single HTML page listing all Luis's project URLs.
 // Auth: luis / Tengo1Hermana25
 
-const EXPECTED_AUTH = 'Basic ' + btoa('luis:Tengo1Hermana25');
+const AUTH_USER = 'luis';
+const AUTH_PASS = 'Tengo1Hermana25';
+const AUTH_KEY = AUTH_PASS; // query param ?k=
+const EXPECTED_AUTH = 'Basic ' + btoa(AUTH_USER + ':' + AUTH_PASS);
+const COOKIE_NAME = 'ql_auth';
 
 const HTML = `<!DOCTYPE html>
 <html lang="es">
@@ -108,7 +112,7 @@ footer code { background: var(--surface-2); padding: 1px 5px; border-radius: 3px
 </div>
 
 <footer>
-Hosted on Cloudflare Workers · Basic Auth enabled · <code>luis:Tengo1Hermana25</code>
+Hosted on Cloudflare Workers · Query-param auth (cookie-backed) + Basic Auth fallback
 </footer>
 </div>
 </body>
@@ -118,21 +122,57 @@ addEventListener('fetch', (event) => {
   event.respondWith(handle(event.request));
 });
 
-async function handle(request) {
+function isAuthenticated(request) {
+  // 1. ?k=... in URL (preferred for bookmarks)
+  const url = new URL(request.url);
+  if (url.searchParams.get('k') === AUTH_KEY) return { ok: true, setCookie: true };
+
+  // 2. Cookie set by previous ?k= hit (so the query-string-less URL works too)
+  const cookie = request.headers.get('Cookie') || '';
+  const m = cookie.match(new RegExp('(?:^|; )' + COOKIE_NAME + '=([^;]+)'));
+  if (m && m[1] === AUTH_KEY) return { ok: true };
+
+  // 3. HTTP Basic Auth (curl, Alfred workflows, etc.)
   const auth = request.headers.get('Authorization') || '';
-  if (auth !== EXPECTED_AUTH) {
-    return new Response('Authentication required\n', {
-      status: 401,
+  if (auth === EXPECTED_AUTH) return { ok: true };
+
+  return { ok: false };
+}
+
+async function handle(request) {
+  const result = isAuthenticated(request);
+  if (!result.ok) {
+    return new Response(
+      'Unauthorized. Use https://urls.firemandeveloper.com/?k=YOUR_KEY or Basic Auth.\n',
+      {
+        status: 401,
+        headers: {
+          'WWW-Authenticate': 'Basic realm="quantlab dashboard", charset="UTF-8"',
+          'Content-Type': 'text/plain; charset=utf-8',
+        },
+      }
+    );
+  }
+
+  const url = new URL(request.url);
+  const headers = {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Cache-Control': 'private, no-cache',
+  };
+
+  // After first ?k= hit, set a cookie + redirect to clean URL so the key
+  // doesn't linger in history / Referer.
+  if (result.setCookie && url.searchParams.has('k')) {
+    const clean = url.pathname + (url.search ? url.search.replace(/[?&]k=[^&]*/, '').replace(/^&/, '?') : '');
+    const finalUrl = clean.replace(/\?$/, '') || '/';
+    return new Response(null, {
+      status: 302,
       headers: {
-        'WWW-Authenticate': 'Basic realm="quantlab dashboard", charset="UTF-8"',
-        'Content-Type': 'text/plain; charset=utf-8',
+        Location: finalUrl,
+        'Set-Cookie': COOKIE_NAME + '=' + AUTH_KEY + '; Path=/; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax',
       },
     });
   }
-  return new Response(HTML, {
-    headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'private, no-cache',
-    },
-  });
+
+  return new Response(HTML, { headers });
 }

@@ -28,18 +28,21 @@ Live at **https://urls.firemandeveloper.com**.
 
 ## Auth
 
-HTTP Basic Auth over TLS.
+Three auth methods, checked in this order:
 
-| Field | Value |
-|---|---|
-| User | `luis` |
-| Password | kept in the Worker source — rotate with `./deploy.sh` |
-
-`401` responses carry `WWW-Authenticate: Basic realm="quantlab dashboard"` so browsers pop up a native login prompt. Clients can also send `Authorization: Basic base64(user:pass)` directly:
+1. **Query string** — `?k=YOUR_KEY`. First hit sets a 30-day cookie and redirects to the clean URL (so the key doesn't linger in history). This is the recommended flow for browsers: one link, bookmarkable, no prompt.
+2. **Cookie** — set automatically by the previous step. All subsequent hits to the bare URL work.
+3. **HTTP Basic Auth** — `Authorization: Basic base64(user:pass)`. Useful for `curl`, shortcuts, Alfred workflows, monitoring scripts.
 
 ```bash
-curl -u 'luis:yourpass' https://urls.firemandeveloper.com
+# One-shot URL (browser, Alfred, etc.)
+open 'https://urls.firemandeveloper.com/?k=YOUR_KEY'
+
+# Command-line
+curl -u 'luis:YOUR_KEY' https://urls.firemandeveloper.com
 ```
+
+All three compare against constants at the top of `worker.js`: `AUTH_USER`, `AUTH_PASS`, `AUTH_KEY`. Rotate by editing and re-deploying.
 
 ## Local setup
 
