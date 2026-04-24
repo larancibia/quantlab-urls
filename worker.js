@@ -1,8 +1,8 @@
 // Cloudflare Worker: quantlab-urls dashboard with Basic Auth
 // Serves a single HTML page listing all Luis's project URLs.
-// Auth: luis / Tengo1Hermana!
+// Auth: luis / Tengo1Hermana25
 
-const EXPECTED_AUTH = 'Basic ' + btoa('luis:Tengo1Hermana!');
+const EXPECTED_AUTH = 'Basic ' + btoa('luis:Tengo1Hermana25');
 
 const HTML = `<!DOCTYPE html>
 <html lang="es">
@@ -108,7 +108,7 @@ footer code { background: var(--surface-2); padding: 1px 5px; border-radius: 3px
 </div>
 
 <footer>
-Hosted on Cloudflare Workers · Basic Auth enabled · <code>luis:Tengo1Hermana!</code>
+Hosted on Cloudflare Workers · Basic Auth enabled · <code>luis:Tengo1Hermana25</code>
 </footer>
 </div>
 </body>

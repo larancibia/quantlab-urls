@@ -38,7 +38,7 @@ HTTP Basic Auth over TLS.
 `401` responses carry `WWW-Authenticate: Basic realm="quantlab dashboard"` so browsers pop up a native login prompt. Clients can also send `Authorization: Basic base64(user:pass)` directly:
 
 ```bash
-curl -u luis:SECRET https://urls.firemandeveloper.com
+curl -u 'luis:yourpass' https://urls.firemandeveloper.com
 ```
 
 ## Local setup
