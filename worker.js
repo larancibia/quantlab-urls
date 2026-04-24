@@ -83,10 +83,11 @@ footer code { background: var(--surface-2); padding: 1px 5px; border-radius: 3px
 </section>
 
 <section>
-  <h2>🐙 GitHub repos (públicos) <span class="count">3</span></h2>
+  <h2>🐙 GitHub repos (públicos) <span class="count">4</span></h2>
   <div class="item"><a href="https://github.com/larancibia/canopy-lang" target="_blank">github.com/larancibia/canopy-lang</a><div class="desc">Canopy lib · source + releases</div></div>
   <div class="item"><a href="https://github.com/larancibia/canopy-lang-site" target="_blank">github.com/larancibia/canopy-lang-site</a><div class="desc">Canopy landing source</div></div>
   <div class="item"><a href="https://github.com/larancibia/patagoniaorbit-2" target="_blank">github.com/larancibia/patagoniaorbit-2</a><div class="desc">PatagoniaOrbit weather</div></div>
+  <div class="item"><a href="https://github.com/larancibia/quantlab-urls" target="_blank">github.com/larancibia/quantlab-urls</a><div class="desc">Source de este dashboard (Worker + README)</div></div>
 </section>
 
 <section>
